@@ -2,7 +2,7 @@ FROM python:3.8-slim
 
 WORKDIR /app
 
-COPY . .
+# COPY . .
 
 COPY ./checkpoints/train/ckpt-3.data-00000-of-00001 ./checkpoints/train/ckpt-3.data-00000-of-00001
 
