@@ -1,17 +1,27 @@
+import io
+import pickle
+from io import BytesIO
+
+import numpy as np
 import streamlit as st
 import tensorflow as tf
+from gtts import gTTS
 from PIL import Image, ImageOps
-import pickle
-import numpy as np
-from io import BytesIO
-import io
-
+import os
+import glob
+import time
 
 # Hyperparams
 embedding_dim = 256
 units = 512
 vocab_size = 5001  # top 5,000 words +1
 attention_features_shape = 64
+
+
+try:
+    os.mkdir("temp")
+except:
+    pass
 
 
 def preprocess_image(img):
@@ -177,16 +187,14 @@ def predictions_from_model(image, max_sequence_len=35, attention_features_shape=
     #     temp_input
     # )  # Extract features using our feature extraction model
 
-
     input_arr = tf.keras.preprocessing.image.img_to_array(image)
     input_arr = tf.keras.applications.inception_v3.preprocess_input(input_arr)
-    input_arr = tf.image.resize(input_arr,size = (299,299))
+    input_arr = tf.image.resize(input_arr, size=(299, 299))
     input_arr = np.array([input_arr])  # Convert single image to a batch.
     img_tensor_val = image_model.predict(input_arr)
     img_tensor_val = tf.reshape(
         img_tensor_val, (img_tensor_val.shape[0], -1, img_tensor_val.shape[3])
     )
-
 
     features = encoder(
         img_tensor_val
@@ -225,13 +233,41 @@ def generate_captions(test_image):
     result, attention_plot, pred_test = predictions_from_model(test_image)
     pred_caption = " ".join(result).rsplit(" ", 1)[0]
 
-    candidate = pred_caption.split()
+    st.markdown(f"## Generated Caption:")
+    st.success(pred_caption)
 
-    st.success(f"Predicted Caption:{pred_caption}")
+    return pred_caption
     # plot_attmap(result, attention_plot, test_image)
     # plt.imshow(load_image(test_image)[0])
 
+
+# https://github.com/android-iceland/streamlit-text-to-speech/blob/main/app.py
+def convert_text_to_speech(text, output_language="en", tld="co.in"):
+
+    tts = gTTS(text, lang=output_language, tld=tld, slow=False)
+    try:
+        my_file_name = text[0:20]
+    except:
+        my_file_name = "audio"
+    tts.save(f"temp/{my_file_name}.mp3")
+    return my_file_name
+
+
+def remove_files(n):
+    mp3_files = glob.glob("temp/*mp3")
+    if len(mp3_files) != 0:
+        now = time.time()
+        n_days = n * 86400
+        for f in mp3_files:
+            if os.stat(f).st_mtime < now - n_days:
+                os.remove(f)
+                print("Deleted ", f)
+
+
 # https://github.com/zarif101/image_captioning_ai/blob/master/main.py
+# https://github.com/sankalp1999/Image_Captioning_With_Attention/blob/main/streamlit_app.py
+
+
 def main():
     st.title("Eye for the Blind - An Image Caption Generator")
     uploaded_file = st.file_uploader("Choose an image...", type="jpg")
@@ -241,7 +277,14 @@ def main():
         st.write("")
 
     if st.button("Generate captions!"):
-        generate_captions(image)
+        pred_caption = generate_captions(image)
+
+        # convert text to speech
+        result = convert_text_to_speech(pred_caption)
+        audio_file = open(f"temp/{result}.mp3", "rb")
+        audio_bytes = audio_file.read()
+        st.markdown(f"## Your audio:")
+        st.audio(audio_bytes, format="audio/mp3", start_time=0)
 
 
 #     im = Image.open(openImg)
@@ -260,3 +303,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    remove_files(7)
